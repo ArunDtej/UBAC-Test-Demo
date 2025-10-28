@@ -1,25 +1,181 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
-	"log"
-	"net"
+	"io/ioutil"
+	"math/rand"
 	"net/http"
+	"time"
 )
 
+type RequestData struct {
+	IP        string `json:"ip"`
+	Email     string `json:"email"`
+	UserAgent string `json:"user_agent"`
+}
+
+type AllowRequest struct {
+	Email     string `json:"email"`
+	IPAddress string `json:"ip_address"`
+	UserAgent string `json:"user_agent"`
+}
+
+type AllowResponse struct {
+	Allow  bool   `json:"allow"`
+	Status string `json:"status"`
+}
+
+type LogRequest struct {
+	IPAddress    string `json:"ip_address"`
+	Email        string `json:"email"`
+	UserAgent    string `json:"user_agent"`
+	Username     string `json:"username"`
+	EventType    string `json:"event_type"`
+	HTTPMethod   string `json:"http_method"`
+	Endpoint     string `json:"endpoint"`
+	Timestamp    string `json:"timestamp"`
+	ResponseCode int    `json:"response_code"`
+	TrackRequest bool   `json:"track_request"`
+}
+
+var requestsSent int = 0
+var requestsAllowed int = 0
+var requestsBlocked int = 0
+
 func handler(w http.ResponseWriter, r *http.Request) {
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	requestsSent++
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var data RequestData
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	allowReqPayload := AllowRequest{
+		Email:     data.Email,
+		IPAddress: data.IP,
+		UserAgent: data.UserAgent,
+	}
+
+	payloadBytes, err := json.Marshal(allowReqPayload)
 	if err != nil {
-		log.Printf("could not parse IP from %q: %v", r.RemoteAddr, err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	fmt.Println("Request from:", ip)
-	w.WriteHeader(http.StatusBadGateway)
-	fmt.Fprintf(w, "Hello, request!")
+
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", "http://localhost:8000/api/allow", bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")
+	req.Header.Set("X-API-Key", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6ImFydW50IiwidmVyc2lvbiI6MjM4ODMwfQ.PrMcrGraHFe0oDSZf2h3zZwTPNb7wT1twuSKbl2QwA0")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	var allowResp AllowResponse
+	if err := json.Unmarshal(body, &allowResp); err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	if allowResp.Allow {
+
+		requestsAllowed++
+
+		statusCodes := []int{
+			http.StatusOK,
+			http.StatusCreated,
+			http.StatusBadRequest,
+			http.StatusUnauthorized,
+			http.StatusInternalServerError,
+		}
+		rand.Seed(time.Now().UnixNano())
+		statusCode := statusCodes[rand.Intn(len(statusCodes))]
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		json.NewEncoder(w).Encode(allowResp)
+
+		go func(statusCode int) {
+			logPayload := LogRequest{
+				IPAddress:    data.IP,
+				Email:        data.Email,
+				UserAgent:    data.UserAgent,
+				Username:     data.Email, // Using email as username as per assumption
+				EventType:    "api_request",
+				HTTPMethod:   r.Method,
+				Endpoint:     r.URL.Path,
+				Timestamp:    time.Now().UTC().Format(time.RFC3339),
+				ResponseCode: statusCode,
+				TrackRequest: true,
+			}
+
+			logPayloadBytes, err := json.Marshal(logPayload)
+			if err != nil {
+				fmt.Println("Error marshalling log payload:", err)
+				return
+			}
+
+			logReq, err := http.NewRequest("POST", "http://localhost:8000/api/log", bytes.NewBuffer(logPayloadBytes))
+			if err != nil {
+				fmt.Println("Error creating log request:", err)
+				return
+			}
+
+			logReq.Header.Set("X-API-Key", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6ImFydW50IiwidmVyc2lvbiI6MjM4ODMwfQ.PrMcrGraHFe0oDSZf2h3zZwTPNb7wT1twuSKbl2QwA0")
+			logReq.Header.Set("Content-Type", "application/json")
+			logReq.Header.Set("User-Agent", "curl-test/1.0")
+
+			logClient := &http.Client{}
+			logResp, err := logClient.Do(logReq)
+			if err != nil {
+				fmt.Println("Error sending log request:", err)
+				return
+			}
+			defer logResp.Body.Close()
+		}(statusCode)
+
+	} else {
+		requestsBlocked++
+	}
+}
+
+func getStats() (int, int, int) {
+	return requestsSent, requestsAllowed, requestsBlocked
 }
 
 func main() {
 	http.HandleFunc("/", handler)
+	http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+		sent, allowed, blocked := getStats()
+		stats := map[string]int{
+			"requests_sent":    sent,
+			"requests_allowed": allowed,
+			"requests_blocked": blocked,
+		}
+		json.NewEncoder(w).Encode(stats)
+	})
 	http.ListenAndServe(":8080", nil)
+
 }
