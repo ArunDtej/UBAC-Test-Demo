@@ -2,12 +2,54 @@
 <html>
 <head>
     <title>Request Stats</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+        }
+        .container {
+            margin-top: 50px;
+        }
+        .card {
+            margin-bottom: 20px;
+            background-color: #222;
+        }
+        .card-title {
+            font-size: 1.5rem;
+        }
+        .card-text {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
-    <h1>Request Stats</h1>
-    <p>Total Requests: <span id="requests_sent">0</span></p>
-    <p>Allowed Requests: <span id="requests_allowed">0</span></p>
-    <p>Blocked Requests: <span id="requests_blocked">0</span></p>
+    <div class="container">
+        <h1 class="text-center">Request Stats</h1>
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Requests</h5>
+                        <p class="card-text" id="requests_sent">0</p>
+                    </div>
+                </div>
+                <div class="card text-center text-success">
+                    <div class="card-body">
+                        <h5 class="card-title">Allowed Requests</h5>
+                        <p class="card-text" id="requests_allowed">0</p>
+                    </div>
+                </div>
+                <div class="card text-center text-danger">
+                    <div class="card-body">
+                        <h5 class="card-title">Blocked Requests</h5>
+                        <p class="card-text" id="requests_blocked">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         var socket = new WebSocket("ws://localhost:8080/ws");
