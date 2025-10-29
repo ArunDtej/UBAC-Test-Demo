@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"log"
 	"math/rand"
 	"net/http"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type RequestData struct {
@@ -43,6 +46,36 @@ type LogRequest struct {
 var requestsSent int = 0
 var requestsAllowed int = 0
 var requestsBlocked int = 0
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+func dataHandler(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer conn.Close()
+
+	for {
+		sent, allowed, blocked := getStats()
+		stats := map[string]int{
+			"requests_sent":    sent,
+			"requests_allowed": allowed,
+			"requests_blocked": blocked,
+		}
+		err := conn.WriteJSON(stats)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
+}
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	requestsSent++
@@ -87,7 +120,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
@@ -176,6 +209,8 @@ func main() {
 		}
 		json.NewEncoder(w).Encode(stats)
 	})
+	http.HandleFunc("/ws", dataHandler)
+	http.Handle("/data", http.StripPrefix("/data", http.FileServer(http.Dir("../frontend"))))
 	http.ListenAndServe(":8080", nil)
 
 }

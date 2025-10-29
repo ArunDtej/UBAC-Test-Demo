@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Request Stats</title>
+</head>
+<body>
+    <h1>Request Stats</h1>
+    <p>Total Requests: <span id="requests_sent">0</span></p>
+    <p>Allowed Requests: <span id="requests_allowed">0</span></p>
+    <p>Blocked Requests: <span id="requests_blocked">0</span></p>
+
+    <script>
+        var socket = new WebSocket("ws://localhost:8080/ws");
+
+        socket.onmessage = function(event) {
+            var stats = JSON.parse(event.data);
+            document.getElementById("requests_sent").innerText = stats.requests_sent;
+            document.getElementById("requests_allowed").innerText = stats.requests_allowed;
+            document.getElementById("requests_blocked").innerText = stats.requests_blocked;
+        };
+    </script>
+</body>
+</html>
