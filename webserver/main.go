@@ -111,6 +111,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")
 	req.Header.Set("X-API-Key", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6ImFydW50IiwidmVyc2lvbiI6MjM4ODMwfQ.PrMcrGraHFe0oDSZf2h3zZwTPNb7wT1twuSKbl2QwA0")
+	// req.Header.Set("X-API-Key", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJ1c2VybmFtZSI6ImRlbW8iLCJ2ZXJzaW9uIjo5NzA2MDB9.Hi08aNpv5zRHV9v2bkW7fW6WGvIRI1MJuCE0z-nf-4A")
+
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
@@ -171,12 +173,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			logReq, err := http.NewRequest("POST", "http://localhost:8000/api/log", bytes.NewBuffer(logPayloadBytes))
+			// logReq, err := http.NewRequest("POST", "https://api.apigate.in/api/log", bytes.NewBuffer(logPayloadBytes))
 			if err != nil {
 				fmt.Println("Error creating log request:", err)
 				return
 			}
 
 			logReq.Header.Set("X-API-Key", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6ImFydW50IiwidmVyc2lvbiI6MjM4ODMwfQ.PrMcrGraHFe0oDSZf2h3zZwTPNb7wT1twuSKbl2QwA0")
+			// logReq.Header.Set("X-API-Key", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJ1c2VybmFtZSI6ImRlbW8iLCJ2ZXJzaW9uIjo5NzA2MDB9.Hi08aNpv5zRHV9v2bkW7fW6WGvIRI1MJuCE0z-nf-4A")
 			logReq.Header.Set("Content-Type", "application/json")
 			logReq.Header.Set("User-Agent", "curl-test/1.0")
 
